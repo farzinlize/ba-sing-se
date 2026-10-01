@@ -40,15 +40,18 @@ def find_hills(terrain: Terrain) -> np.ndarray:
     """Find separated local summits with relief, ignoring tiny surface bumps.
 
     A summit dominates a neighborhood about 5% of the map wide, rises at
-    least 2.5% of the land's relief above its neighborhood median, and stands
-    at least 15% of that relief above sea level. Retain one summit per 6% of
+    least 2.5% of the land's relief above the median of a wider (12%) neighborhood,
+    and stands at least 15% of that relief above the land base (sea or minimum
+    elevation, whichever is higher). Retain one summit per 6% of
     the map width so adjacent vertices cannot count as different hills.
     """
     heights = terrain.heights
-    relief = float(heights.max() - terrain.sea_level)
+    base = max(float(heights.min()), terrain.sea_level)
+    relief = float(heights.max() - base)
     if relief <= 0:
         return np.empty((0, 2), dtype=int)
     radius = max(1, int(round(min(heights.shape) * 0.025)))
+    relief_radius = max(radius, int(round(min(heights.shape) * 0.06)))
     local_max = heights.copy()
     for axis in (0, 1):
         padding = [(0, 0), (0, 0)]
@@ -57,7 +60,7 @@ def find_hills(terrain: Terrain) -> np.ndarray:
             np.pad(local_max, padding, mode="edge"), 2 * radius + 1, axis=axis)
         local_max = windows.max(axis=-1)
     candidates = np.argwhere((heights == local_max)
-                             & (heights > terrain.sea_level + relief * 0.15))
+                             & (heights > base + relief * 0.15))
     candidates = sorted(candidates, key=lambda rc: (-heights[tuple(rc)], *rc))
     separation = 0.06 * min(np.ptp(terrain.x), np.ptp(terrain.y))
     peaks = []
@@ -65,8 +68,9 @@ def find_hills(terrain: Terrain) -> np.ndarray:
         # Boundary maxima need not be hills; there is no terrain beyond them.
         if not (0 < row < heights.shape[0] - 1 and 0 < col < heights.shape[1] - 1):
             continue
-        patch = heights[max(0, row - radius):row + radius + 1,
-                        max(0, col - radius):col + radius + 1]
+        # Broad, rounded summits need a wider neighborhood to measure relief.
+        patch = heights[max(0, row - relief_radius):row + relief_radius + 1,
+                        max(0, col - relief_radius):col + relief_radius + 1]
         if heights[row, col] - np.median(patch) < relief * 0.025:
             continue
         if all(math.hypot(terrain.x[col] - terrain.x[c], terrain.y[row] - terrain.y[r])

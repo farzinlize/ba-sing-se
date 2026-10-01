@@ -98,7 +98,8 @@ def test_rejects_land_without_multiple_distinct_hills(shape):
 
 def test_unsuitable_terrain_leaves_no_sample(tmp_path):
     with pytest.raises(ValueError, match="No horizontal hilltop view"):
-        generate_sample(tmp_path / "sample", PipelineConfig(size=17, seed=42))
+        generate_sample(tmp_path / "sample", PipelineConfig(size=17, seed=42,
+                                                          terrain_mode="fractal", terrain_smoothing=0))
     assert list(tmp_path.iterdir()) == []
 
 

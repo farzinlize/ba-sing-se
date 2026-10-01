@@ -66,6 +66,7 @@ def test_batch_checks_all_existing_destinations_before_attempting_generation(tmp
 def test_real_batch_retries_and_saves_exact_count_with_actual_seeds(tmp_path, capsys):
     # This terrain at seed 42 has only one hill and must be skipped.
     assert main(["--output", str(tmp_path), "--seed", "42", "--size", "17",
+                 "--terrain-mode", "fractal", "--terrain-smoothing", "0",
                  "--count", "2", "--width", "320", "--height", "180"]) == 0
     samples = sorted(tmp_path.iterdir())
     assert [p.name for p in samples] == ["sample_0000", "sample_0001"]
