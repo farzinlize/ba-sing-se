@@ -1,7 +1,8 @@
 # Topogame
 
 A modular Python pipeline that creates random virtual terrain, a topographic map
-with labeled heights and terrain colors, and a perspective image taken at a random
+with labeled heights and terrain colors, a contour-only map without camera bearing,
+and a perspective image taken at a random
 land point facing **N, E, S, or W**. Uses diamond-square, NumPy, Matplotlib, and PyVista.
 
 ## Run
@@ -29,6 +30,7 @@ batch; existing samples are never overwritten.
 ```text
 outputs/demo/sample_0000/
 ├── topographic.png  # north-up map, biome legend, elevation contours, camera arrow
+├── topographic_monochrome.png  # black contours, camera position only; no bearing
 ├── view.png         # perspective image from that arrow's position and bearing
 ├── terrain.npz      # heights, biome IDs, x/y axes, sea level
 └── metadata.json    # seed, configuration, camera, palette, dependency versions
@@ -61,9 +63,15 @@ as in a real ground-level camera; visibility is not guaranteed.
 | `biomes.py` | Altitude-based terrain types and shared colors |
 | `viewpoint.py` | Random dry interior location and independent random cardinal bearing |
 | `topographic.py` | Colored map, labeled contours, camera marker |
+| `monochrome.py` | Black-on-white labeled contours and camera location, without camera direction |
 | `rendering.py` | Off-screen PyVista mesh, sea surface, perspective camera |
 | `pipeline.py` | Reproducible stage orchestration and artifact persistence |
 | `cli.py` | Single-sample and batch command-line interface |
+
+The additional `topographic_monochrome.png` has no colored fills or biome legend.
+It keeps elevation labels, north-up map orientation, and a black camera location
+dot labeled "Camera", with no camera arrow or facing-direction label. Camera
+direction remains available in the original colored map and metadata.
 
 The map and rendered scene use the same heights and biome palette. Biomes are
 synthetic altitude zones: water at/below sea level; dry land is beach below 4%,
