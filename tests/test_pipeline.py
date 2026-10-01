@@ -8,6 +8,7 @@ import pytest
 from topogame import PipelineConfig, generate_sample
 from topogame.biomes import Biome, classify_biomes
 from topogame.cli import main
+from topogame.monochrome import save_monochrome_map
 from topogame.terrain import Terrain, diamond_square, generate_terrain
 from topogame.viewpoint import DIRECTIONS, select_viewpoint
 
@@ -109,10 +110,11 @@ def test_complete_sample_and_reproduction(tmp_path):
     first = generate_sample(tmp_path / "first", config)
     second = generate_sample(tmp_path / "second", replace(config))
     assert {p.name for p in first.iterdir()} == {
-        "topographic.png", "view.png", "terrain.npz", "metadata.json",
+        "topographic.png", "topographic_monochrome.png", "view.png", "terrain.npz", "metadata.json",
     }
     metadata = json.loads((first / "metadata.json").read_text())
     assert metadata == json.loads((second / "metadata.json").read_text())
+    assert (first / metadata["files"]["monochrome_map"]).is_file()
     with np.load(first / "terrain.npz") as data, np.load(second / "terrain.npz") as copy:
         np.testing.assert_array_equal(data["heights"], copy["heights"])
         np.testing.assert_array_equal(data["biomes"], copy["biomes"])
@@ -126,3 +128,23 @@ def test_complete_sample_and_reproduction(tmp_path):
         assert np.unique(pixels.reshape(-1, 3), axis=0).shape[0] > 100
     with Image.open(first / "topographic.png") as topo:
         assert topo.width >= 1000 and topo.height >= 1000
+
+
+def test_monochrome_map_has_no_color_or_camera_orientation(tmp_path):
+    config = PipelineConfig(size=17)
+    terrain = generate_terrain(config, np.random.default_rng(42))
+    camera = select_viewpoint(terrain, config, np.random.default_rng(12))
+    baseline = None
+    for direction, (dx, dy) in DIRECTIONS.items():
+        x, y, z = camera.position
+        rotated = replace(camera, direction=direction, focal_point=(x + dx * 100, y + dy * 100, z))
+        path = tmp_path / f"map_{direction}.png"
+        save_monochrome_map(terrain, rotated, config, path)
+        with Image.open(path) as image:
+            pixels = np.array(image.convert("RGB"))
+        np.testing.assert_array_equal(pixels[:, :, 0], pixels[:, :, 1])
+        np.testing.assert_array_equal(pixels[:, :, 1], pixels[:, :, 2])
+        assert pixels.min() == 0 and pixels.max() == 255
+        if baseline is not None:
+            np.testing.assert_array_equal(pixels, baseline)
+        baseline = pixels

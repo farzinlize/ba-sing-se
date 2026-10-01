@@ -42,7 +42,8 @@ def main(argv: list[str] | None = None) -> int:
             sample_config = PipelineConfig(**{**args, "seed": config.seed + i})
             print(f"Generating {path} (seed={sample_config.seed})", flush=True)
             generate_sample(path, sample_config)
-            print(f"Saved {path / 'topographic.png'} and {path / 'view.png'}", flush=True)
+            print(f"Saved {path / 'topographic.png'}, "
+                  f"{path / 'topographic_monochrome.png'}, and {path / 'view.png'}", flush=True)
     except (ValueError, OSError) as error:
         parser.error(str(error))
     return 0
