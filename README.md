@@ -90,6 +90,54 @@ does not include cast shadows, and lighting makes map/view pixel colors differ.
 VTK shadow quality depends on the graphics backend and image size; see the
 [PyVista lighting notes](https://docs.pyvista.org/api/plotting/lights.html).
 
+## Stylized low-poly camera images
+
+`--render-style natural` preserves the existing appearance (default).
+`--render-style stylized` adds flat-shaded terrain with subtle face-color variation,
+irregular rocks, clustered pine/oak/birch trees, near-camera shrubs and grass,
+warm sunlight with cool sky fill, small low-poly clouds, and gentle distance haze.
+The terrain mesh is **not simplified or displaced**: heights, camera position,
+horizontal framing, and the matching contours stay unchanged. The colored map
+shares the richer ground palette; the monochrome puzzle map stays undecorated.
+
+```bash
+uv run topogame --output outputs/stylized --render-style stylized --seed 42 --count 3 \
+  --no-island --min-height 50 --max-height 450 --sea-level 0 \
+  --tree-density 12 --rock-density 3 --sky-fill 0.45 --contour-interval 25
+# Island with optional snow and shallow/deep water colors:
+uv run topogame --output outputs/stylized-island --render-style stylized --seed 42 --snow-line 450
+```
+
+Essential stylized controls (also fields on `PipelineConfig`):
+
+| Option | Default / meaning |
+| --- | --- |
+| `--tree-density`, `--rock-density` | 12 trees / 3 rocks per hectare, before suitability and spacing filters; 0 disables |
+| `--tree-species` | `pine oak birch`; pass one or more distinct species |
+| `--tree-height-min`, `--tree-height-max` | 10–24 meters |
+| `--ground-cover-density` | 1; shrub/grass density multiplier, 0 disables |
+| `--vegetation-seed`, `--decoration-seed` | Independent seeds derived from the sample seed unless overridden |
+| `--sky-fill`, `--facet-variation` | 0.45 sky illumination / 0.035 face-color variation |
+| `--no-clouds`, `--haze-strength` | Clouds enabled / 0.12 distance color haze; 0 disables haze |
+| `--snow-line` | Optional absolute elevation in meters; snow disabled by default |
+
+Placement follows slope/elevation and seeded clusters, with spaced tree crowns
+and clearings. Rocks favor exposed slopes. Models are batched by species, variant,
+and distance detail level; distant trees use fewer triangles and grass is limited
+to the foreground. Conservative placement protects summit sightlines, followed
+by ray intersections against the actual final decoration triangles. Any blocking
+object is removed in full. Unsuitable terrain still triggers the existing retry
+logic until the requested sample count is saved; the camera is never tilted.
+
+Metadata records the style, controls, resolved scenery seeds, actual object counts,
+batch/triangle counts, removed obstructions, and a reproducible placement hash.
+Density is a target, not an exact count: spacing, terrain resolution, snow, and
+visibility filtering can reduce it. Higher densities cost memory and render time;
+batching avoids thousands of actors but still expands repeated mesh geometry.
+Haze is a lightweight distance-based color blend, not volumetric fog. Water colors
+follow depth within the map bounds; waves/refraction are not simulated. Models and
+clouds are procedural, and existing VTK shadow/backend limitations still apply.
+
 ## Camera composition rules
 
 - Stand on a detected local hilltop inside the map's 10% boundary margin,
@@ -132,6 +180,7 @@ shape, eye height, or required hill count).
 | `topographic.py` | Colored map, labeled contours, camera marker |
 | `monochrome.py` | Black-on-white labeled contours and camera location, without camera direction |
 | `rendering.py` | Off-screen PyVista mesh, sea surface, perspective camera |
+| `decoration.py` | Seeded low-poly models, clustered placement, batching, final-scene sightlines |
 | `pipeline.py` | Reproducible stage orchestration and artifact persistence |
 | `cli.py` | Single-sample and batch command-line interface |
 
@@ -150,7 +199,7 @@ has no sea plane or coastline. Underwater heights remain in the data and contour
 Coordinates use meters: +X east, +Y north, +Z up. Array access is
 `heights[row_y, column_x]`, with row zero at the southern boundary. Both the map
 and camera use this convention. The colored map arrow matches the exact camera
-bearing; its compass label is rounded to N/NE/E/SE/S/SW/W/NW. Metadata schema 3
+bearing; its compass label is rounded to N/NE/E/SE/S/SW/W/NW. Metadata schema 4
 records the exact bearing in `coordinates.bearing_degrees_clockwise_from_north`
 and selected summit `[row, column]` indices in `camera.visible_hills`, plus all
 terrain/lighting settings, the shared surface palette, and world-space sun vector.
@@ -195,4 +244,5 @@ uv run pytest -m 'not render'    # geometry, camera, validation, failure cleanup
 Tests verify seeded generation, coastlines, biome thresholds, level hilltop views,
 summit framing, blocked sightlines, unsuitable terrain, output preservation,
 failure cleanup, rounded-terrain smoothness, dry land, slope colors, sun direction,
-lighting controls, and complete paired artifacts.
+lighting controls, stylized scenery/spacing, final-mesh obstruction removal,
+unchanged terrain/cameras across styles, and complete paired artifacts.

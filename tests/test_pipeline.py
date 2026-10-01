@@ -115,7 +115,7 @@ def test_complete_sample_and_reproduction(tmp_path):
         "topographic.png", "topographic_monochrome.png", "view.png", "terrain.npz", "metadata.json",
     }
     metadata = json.loads((first / "metadata.json").read_text())
-    assert metadata["schema_version"] == 3
+    assert metadata["schema_version"] == 4
     assert len(metadata["camera"]["visible_hills"]) >= 2
     camera_data = metadata["camera"]
     delta = np.subtract(camera_data["focal_point"], camera_data["position"])

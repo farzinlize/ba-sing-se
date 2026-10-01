@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 from matplotlib import patheffects
 
-from .biomes import SURFACE_COLORS, SURFACE_LABELS, hillshade_colors, terrain_colors
+from .biomes import SURFACE_LABELS, SNOW_COLOR, hillshade_colors, surface_palette, terrain_colors
 from .config import PipelineConfig
 from .terrain import Terrain
 from .viewpoint import Viewpoint
@@ -19,7 +19,7 @@ def save_topographic_map(terrain: Terrain, biomes: np.ndarray, camera: Viewpoint
     FigureCanvasAgg(figure)
     ax = figure.subplots()
     half_cell = (terrain.x[1] - terrain.x[0]) / 2
-    rgb = terrain_colors(terrain) if surface_rgb is None else surface_rgb
+    rgb = terrain_colors(terrain, config) if surface_rgb is None else surface_rgb
     ax.imshow(hillshade_colors(terrain, rgb, config), origin="lower",
               extent=(-half_cell, config.extent + half_cell, -half_cell, config.extent + half_cell),
               interpolation="bilinear")
@@ -47,9 +47,12 @@ def save_topographic_map(terrain: Terrain, biomes: np.ndarray, camera: Viewpoint
     ax.set(xlim=(0, config.extent), ylim=(0, config.extent), aspect="equal",
            xlabel="East (m)", ylabel="North (m)",
            title=f"Terrain {config.seed} · North ↑ · contours {config.contour_interval:g} m")
-    ax.legend(handles=[Patch(facecolor=color / 255, label=label)
-                        for color, label in zip(SURFACE_COLORS, SURFACE_LABELS)
-                        if label != "Water" or np.any(terrain.heights <= terrain.sea_level)],
+    legend = [Patch(facecolor=color / 255, label=label)
+              for color, label in zip(surface_palette(config), SURFACE_LABELS)
+              if label != "Water" or np.any(terrain.heights <= terrain.sea_level)]
+    if config.render_style == "stylized" and config.snow_line is not None and terrain.heights.max() > config.snow_line:
+        legend.append(Patch(facecolor=SNOW_COLOR / 255, label="Snow"))
+    ax.legend(handles=legend,
               loc="upper center", bbox_to_anchor=(0.5, -0.09), ncol=4, frameon=False,
               title="Surface colors · blended by elevation and slope")
     figure.savefig(path, dpi=160)

@@ -7,8 +7,9 @@ from pathlib import Path
 import tempfile
 import numpy as np
 
-from .biomes import COLORS, LABELS, SURFACE_COLORS, SURFACE_LABELS, classify_biomes, terrain_colors
+from .biomes import COLORS, LABELS, SURFACE_LABELS, classify_biomes, surface_palette, terrain_colors
 from .config import PipelineConfig
+from .decoration import build_scene
 from .monochrome import save_monochrome_map
 from .rendering import render_view
 from .terrain import generate_terrain
@@ -28,19 +29,21 @@ def generate_sample(output: str | Path, config: PipelineConfig | None = None) ->
     terrain_seed, camera_seed = np.random.SeedSequence(config.seed).spawn(2)
     terrain = generate_terrain(config, np.random.default_rng(terrain_seed))
     biomes = classify_biomes(terrain)
-    rgb = terrain_colors(terrain)
+    rgb = terrain_colors(terrain, config)
     camera = select_viewpoint(terrain, config, np.random.default_rng(camera_seed))
+    scene = build_scene(terrain, camera, config) if config.render_style == "stylized" else None
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".topogame-", dir=output.parent) as temporary:
         stage = Path(temporary)
         save_topographic_map(terrain, biomes, camera, config, stage / "topographic.png", surface_rgb=rgb)
         save_monochrome_map(terrain, camera, config, stage / "topographic_monochrome.png")
-        render_view(terrain, biomes, camera, config, stage / "view.png", surface_rgb=rgb)
+        render_view(terrain, biomes, camera, config, stage / "view.png", surface_rgb=rgb, scene=scene)
         np.savez_compressed(stage / "terrain.npz", heights=terrain.heights, biomes=biomes,
                             x=terrain.x, y=terrain.y, sea_level=terrain.sea_level, surface_rgb=rgb)
         metadata = {
-            "schema_version": 3, "config": asdict(config), "camera": asdict(camera),
-            "appearance": {"surface_colors": dict(zip(SURFACE_LABELS, SURFACE_COLORS.tolist())),
+            "schema_version": 4, "config": asdict(config), "camera": asdict(camera),
+            "scenery": scene.metadata() if scene is not None else {"enabled": False},
+            "appearance": {"surface_colors": dict(zip(SURFACE_LABELS, surface_palette(config).tolist())),
                            "color_model": "smooth elevation and slope blend",
                            "sun_direction": config.sun_direction,
                            "sun_azimuth_convention": "clockwise from north; direction toward sun",

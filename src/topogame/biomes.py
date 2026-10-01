@@ -27,6 +27,14 @@ COLORS = np.array([
 SURFACE_LABELS = ("Grass", "Earth", "Rock", "Water")
 SURFACE_COLORS = np.array([[125, 143, 99], [163, 148, 120], [157, 155, 147],
                            [91, 133, 145]], dtype=np.uint8)
+STYLIZED_COLORS = np.array([[133, 176, 63], [174, 150, 102], [147, 149, 142],
+                           [25, 127, 187]], dtype=np.uint8)
+SAND_COLOR = np.array([225, 205, 145])
+SNOW_COLOR = np.array([237, 242, 244])
+
+
+def surface_palette(config: PipelineConfig) -> np.ndarray:
+    return STYLIZED_COLORS if config.render_style == "stylized" else SURFACE_COLORS
 
 
 def terrain_normals(terrain: Terrain) -> np.ndarray:
@@ -41,17 +49,43 @@ def _smoothstep(low: float, high: float, values: np.ndarray) -> np.ndarray:
     return fraction * fraction * (3 - 2 * fraction)
 
 
-def terrain_colors(terrain: Terrain) -> NDArray[np.uint8]:
+def water_colors(depth: np.ndarray, extent: float) -> NDArray[np.uint8]:
+    """Shared shallow/deep/shore colors for the map and stylized sea surface."""
+    fraction = _smoothstep(0, max(extent * 0.025, 1), depth)
+    shallow, deep = np.array([65, 190, 205]), np.array([22, 108, 175])
+    rgb = shallow * (1 - fraction[..., None]) + deep * fraction[..., None]
+    shore = np.clip(1 - depth / 1.5, 0, 1)
+    rgb = rgb * (1 - shore[..., None]) + np.array([188, 226, 215]) * shore[..., None]
+    return np.rint(rgb).astype(np.uint8)
+
+
+def terrain_colors(terrain: Terrain, config: PipelineConfig | None = None) -> NDArray[np.uint8]:
     """Muted, smoothly blended grass/earth/rock using final elevation and slope."""
     base = max(float(terrain.heights.min()), terrain.sea_level)
     relief = max(float(terrain.heights.max() - base), np.finfo(float).eps)
     relative = np.clip((terrain.heights - base) / relief, 0, 1)
     slope = np.degrees(np.arccos(np.clip(terrain_normals(terrain)[..., 2], 0, 1)))
     earth = _smoothstep(0.2, 0.75, relative)[..., None]
-    rgb = SURFACE_COLORS[0] * (1 - earth) + SURFACE_COLORS[1] * earth
-    rock = np.maximum(_smoothstep(0.65, 1.0, relative), _smoothstep(20, 50, slope))[..., None]
-    rgb = rgb * (1 - rock) + SURFACE_COLORS[2] * rock
-    rgb[terrain.heights <= terrain.sea_level] = SURFACE_COLORS[3]
+    stylized = config is not None and config.render_style == "stylized"
+    palette = STYLIZED_COLORS if stylized else SURFACE_COLORS
+    if stylized:
+        earth *= 0.45
+    rgb = palette[0] * (1 - earth) + palette[1] * earth
+    rock = np.maximum(_smoothstep(0.8 if stylized else 0.65, 1.0, relative),
+                      _smoothstep(35 if stylized else 20, 62 if stylized else 50, slope))[..., None]
+    rgb = rgb * (1 - rock) + palette[2] * rock
+    if stylized:
+        # Only create beach bands if this terrain actually intersects water.
+        if terrain.heights.min() <= terrain.sea_level:
+            beach = (1 - _smoothstep(0, config.extent * 0.007, terrain.heights - terrain.sea_level))
+            beach *= 1 - _smoothstep(20, 45, slope)
+            rgb = rgb * (1 - beach[..., None]) + SAND_COLOR * beach[..., None]
+        if config.snow_line is not None:
+            snow = _smoothstep(config.snow_line, config.snow_line + 30, terrain.heights)
+            snow *= 1 - _smoothstep(45, 75, slope)
+            rgb = rgb * (1 - snow[..., None]) + SNOW_COLOR * snow[..., None]
+    wet = terrain.heights <= terrain.sea_level
+    rgb[wet] = water_colors(terrain.sea_level - terrain.heights[wet], config.extent) if stylized else palette[3]
     return np.rint(rgb).astype(np.uint8)
 
 
