@@ -2,8 +2,8 @@
 
 A modular Python pipeline that creates random virtual terrain, a topographic map
 with labeled heights and terrain colors, a contour-only map without camera bearing,
-and a perspective image taken at a random
-land point facing **N, E, S, or W**. Uses diamond-square, NumPy, Matplotlib, and PyVista.
+and a horizontal perspective image from a hill below the highest summit, facing
+at least two visible hilltops. Uses diamond-square, NumPy, Matplotlib, and PyVista.
 
 ## Run
 
@@ -23,9 +23,13 @@ python -m pip install -e '.[dev]'
 python -m topogame --output outputs/demo --seed 42 --count 3
 ```
 
-Omit `--seed` for a fresh random batch. Each sample records its seed and settings;
-sample `i` uses the base seed plus `i`. Choose a new output directory for another
-batch; existing samples are never overwritten.
+Omit `--seed` for a fresh random batch. `--count` is the number of successful
+samples to save. Attempts use consecutive seeds starting at `--seed`; terrain
+that cannot satisfy the camera rules is logged and skipped automatically. The
+next seed is tried until exactly the requested count is saved, with consecutive
+sample folder numbers and no gaps. Each sample's metadata records its actual
+seed and settings. Choose a new output directory for another batch; existing
+samples are never overwritten.
 
 ```text
 outputs/demo/sample_0000/
@@ -42,7 +46,7 @@ Useful options:
 uv run topogame --output outputs/large --seed 7 --size 513 \
   --extent 4000 --min-height -150 --max-height 900 --sea-level 0 \
   --roughness 0.6 --contour-interval 50 --eye-height 15 \
-  --pitch -5 --width 1600 --height 900
+  --field-of-view 65 --min-visible-hills 2 --width 1600 --height 900
 uv run topogame --help
 ```
 
@@ -50,9 +54,39 @@ Grid size must be `2**n + 1`, at least 9: 129, 257, and 513 are practical choice
 Higher roughness retains more small-scale height variation. By default, shoreline
 falloff makes an island; `--no-island` leaves the fractal terrain unmasked.
 `--eye-height` is meters above the selected ground point (default 12 for visibility;
-use around 1.7 for human eye level). Pitch defaults to horizontal; negative looks
-down. Field of view is vertical. Distant terrain can be hidden by nearby ridges,
-as in a real ground-level camera; visibility is not guaranteed.
+use around 1.7 for human eye level). The camera stays level with Z up and zero
+pitch, giving a forward perspective with space above, below, left, and right.
+`--pitch` accepts only 0. Field of view is vertical; image aspect ratio determines
+the horizontal field of view. `--width` and `--height` affect the camera image.
+
+## Camera composition rules
+
+- Stand on a detected local hilltop inside the map's 10% boundary margin,
+  strictly below the terrain's highest elevation.
+- Include at least `--min-visible-hills` distinct **other** hilltops (default 2,
+  minimum 2), separated by at least 5 degrees in the view.
+- Reject hilltops hidden by intervening terrain. Sightline checks cover grid
+  edges and triangle diagonals, conservatively allowing either cell triangulation.
+- Aim at a suitable bearing, not just N/E/S/W, while keeping the camera horizontal.
+- Keep the selected summits inside a 10% margin on all four image edges, so their
+  tops are visible with headroom. The margin applies to the selected hilltops;
+  other terrain can extend outside the frame.
+
+Hill detection ignores small surface bumps: a summit must dominate a neighborhood
+about 5% of the map wide, rise at least 2.5% of the land's elevation range above
+its neighborhood median, and stand at least 15% of that range above sea level.
+Detected hills are at least 6% of the map width apart.
+
+Candidate camera hills are visited in seeded random order. At the first location
+with a suitable view, the bearing favors more visible summits, then centered
+framing. If a terrain cannot satisfy the rules, `generate_sample()` raises
+`NoSuitableViewError` and creates no directory for that sample. The command-line
+runner catches this specific error and tries the next seed until `--count`
+successful samples have been saved. Invalid configuration, file errors, and
+rendering failures still stop the run; earlier completed samples remain saved.
+Small grids and single-hill maps can be unsuitable. Retries have no fixed limit;
+settings that prevent any valid view need to be adjusted (field of view, image
+shape, eye height, or required hill count).
 
 ## Modules
 
@@ -61,7 +95,7 @@ as in a real ground-level camera; visibility is not guaranteed.
 | `config.py` | Parameters and validation |
 | `terrain.py` | Diamond-square height field and optional island falloff |
 | `biomes.py` | Altitude-based terrain types and shared colors |
-| `viewpoint.py` | Random dry interior location and independent random cardinal bearing |
+| `viewpoint.py` | Hill detection, terrain visibility checks, level camera composition |
 | `topographic.py` | Colored map, labeled contours, camera marker |
 | `monochrome.py` | Black-on-white labeled contours and camera location, without camera direction |
 | `rendering.py` | Off-screen PyVista mesh, sea surface, perspective camera |
@@ -82,9 +116,10 @@ the raw data and map contours. Mesh lighting and interpolation affect image colo
 
 Coordinates use meters: +X east, +Y north, +Z up. Array access is
 `heights[row_y, column_x]`, with row zero at the southern boundary. Both the map
-and camera use this convention. The camera is sampled uniformly among dry grid
-vertices inside a 10% boundary margin. Bearings are sampled uniformly and
-independently, without choosing a preferred scenic direction.
+and camera use this convention. The colored map arrow matches the exact camera
+bearing; its compass label is rounded to N/NE/E/SE/S/SW/W/NW. Metadata schema 2
+records the exact bearing in `coordinates.bearing_degrees_clockwise_from_north`
+and selected summit `[row, column]` indices in `camera.visible_hills`.
 
 ## Python API
 
@@ -123,5 +158,6 @@ uv run pytest                    # includes real off-screen rendering
 uv run pytest -m 'not render'    # geometry, camera, validation, failure cleanup
 ```
 
-Tests verify seeded generation, coastlines, biome thresholds, all four camera
-bearings, output preservation, failure cleanup, and complete paired artifacts.
+Tests verify seeded generation, coastlines, biome thresholds, level hilltop views,
+summit framing, blocked sightlines, unsuitable terrain, output preservation,
+failure cleanup, and complete paired artifacts.

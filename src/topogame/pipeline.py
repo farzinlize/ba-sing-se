@@ -38,10 +38,10 @@ def generate_sample(output: str | Path, config: PipelineConfig | None = None) ->
         np.savez_compressed(stage / "terrain.npz", heights=terrain.heights, biomes=biomes,
                             x=terrain.x, y=terrain.y, sea_level=terrain.sea_level)
         metadata = {
-            "schema_version": 1, "config": asdict(config), "camera": asdict(camera),
+            "schema_version": 2, "config": asdict(config), "camera": asdict(camera),
             "coordinates": {"units": "meters", "x": "east", "y": "north", "z": "up",
                             "array_indexing": "heights[row_y, column_x]; row 0 is south",
-                            "bearing_degrees_clockwise_from_north": {"N": 0, "E": 90, "S": 180, "W": 270}[camera.direction]},
+                            "bearing_degrees_clockwise_from_north": camera.bearing_degrees},
             "biomes": [{"id": i, "name": label, "rgb": color.tolist()}
                        for i, (label, color) in enumerate(zip(LABELS, COLORS))],
             "versions": {name: version(name) for name in ("topogame", "numpy", "matplotlib", "pyvista", "vtk")},

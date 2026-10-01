@@ -18,6 +18,8 @@ from topogame.viewpoint import DIRECTIONS, select_viewpoint
     {"roughness": 0}, {"roughness": 1}, {"sea_level": 700},
     {"extent": 0}, {"pitch": 90}, {"eye_height": -1},
     {"width": 0}, {"contour_interval": 0}, {"max_height": float("nan")},
+    {"pitch": -10}, {"pitch": 1}, {"min_visible_hills": 1},
+    {"min_visible_hills": True}, {"min_visible_hills": 2.5},
 ])
 def test_invalid_settings(changes):
     with pytest.raises(ValueError):
@@ -52,23 +54,23 @@ def test_altitude_zones_and_sea_level_boundary():
     assert classify_biomes(terrain).tolist() == [[0, 0, 1, 2, 3, 4, 5]]
 
 
-def test_camera_cardinals_are_consistent_with_grid():
-    config = PipelineConfig(size=33, pitch=-10)
+def test_camera_is_level_reproducible_and_consistent_with_grid():
+    config = PipelineConfig(size=33)
     terrain = generate_terrain(config, np.random.default_rng(14))
-    seen = set()
-    for seed in range(60):
+    for seed in range(8):
         camera = select_viewpoint(terrain, config, np.random.default_rng(seed))
         same = select_viewpoint(terrain, config, np.random.default_rng(seed))
         assert camera == same
-        seen.add(camera.direction)
         assert camera.ground_height > terrain.sea_level
         assert camera.position[0] == terrain.x[camera.column]
         assert camera.position[1] == terrain.y[camera.row]
         assert camera.position[2] == camera.ground_height + config.eye_height
         delta = np.subtract(camera.focal_point, camera.position)
-        np.testing.assert_allclose(delta[:2] / (config.extent * 0.2), DIRECTIONS[camera.direction])
-        assert delta[2] < 0
-    assert seen == set(DIRECTIONS)
+        assert np.linalg.norm(delta[:2]) == pytest.approx(config.extent * 0.2)
+        assert delta[2] == 0
+        assert camera.up == (0, 0, 1)
+        assert camera.ground_height < terrain.heights.max()
+        assert len(camera.visible_hills) >= 2
 
 
 def test_camera_reports_no_land():
@@ -92,7 +94,7 @@ def test_failed_render_leaves_no_partial_sample(tmp_path, monkeypatch):
 
     monkeypatch.setattr("topogame.pipeline.render_view", fail)
     with pytest.raises(RuntimeError, match="renderer unavailable"):
-        generate_sample(tmp_path / "sample", PipelineConfig(size=17))
+        generate_sample(tmp_path / "sample", PipelineConfig(size=17, seed=21))
     assert list(tmp_path.iterdir()) == []
 
 
@@ -113,6 +115,12 @@ def test_complete_sample_and_reproduction(tmp_path):
         "topographic.png", "topographic_monochrome.png", "view.png", "terrain.npz", "metadata.json",
     }
     metadata = json.loads((first / "metadata.json").read_text())
+    assert metadata["schema_version"] == 2
+    assert len(metadata["camera"]["visible_hills"]) >= 2
+    camera_data = metadata["camera"]
+    delta = np.subtract(camera_data["focal_point"], camera_data["position"])
+    bearing = np.degrees(np.arctan2(delta[0], delta[1])) % 360
+    assert metadata["coordinates"]["bearing_degrees_clockwise_from_north"] == pytest.approx(bearing)
     assert metadata == json.loads((second / "metadata.json").read_text())
     assert (first / metadata["files"]["monochrome_map"]).is_file()
     with np.load(first / "terrain.npz") as data, np.load(second / "terrain.npz") as copy:

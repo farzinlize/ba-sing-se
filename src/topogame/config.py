@@ -17,12 +17,13 @@ class PipelineConfig:
     eye_height: float = 12.0
     pitch: float = 0.0
     field_of_view: float = 65.0
+    min_visible_hills: int = 2
     contour_interval: float = 50.0
     width: int = 1280
     height: int = 720
 
     def __post_init__(self) -> None:
-        for name in ("seed", "size", "width", "height"):
+        for name in ("seed", "size", "width", "height", "min_visible_hills"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"{name} must be an integer")
@@ -40,8 +41,10 @@ class PipelineConfig:
             raise ValueError("roughness must be between 0 and 1")
         if min(self.extent, self.eye_height, self.contour_interval) <= 0:
             raise ValueError("extent, eye_height, and contour_interval must be positive")
-        if not -80 <= self.pitch <= 80:
-            raise ValueError("pitch must be between -80 and 80 degrees")
+        if self.pitch != 0:
+            raise ValueError("pitch must be 0 for a horizontal, human-style camera view")
+        if self.min_visible_hills < 2:
+            raise ValueError("min_visible_hills must be at least 2")
         if not 10 <= self.field_of_view <= 120:
             raise ValueError("field_of_view must be between 10 and 120 degrees")
         if min(self.width, self.height) < 64:

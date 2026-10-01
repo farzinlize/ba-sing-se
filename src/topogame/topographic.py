@@ -9,7 +9,7 @@ from matplotlib.patches import Patch
 from .biomes import COLORS, LABELS
 from .config import PipelineConfig
 from .terrain import Terrain
-from .viewpoint import DIRECTIONS, Viewpoint
+from .viewpoint import Viewpoint
 
 
 def save_topographic_map(terrain: Terrain, biomes: np.ndarray, camera: Viewpoint,
@@ -30,7 +30,8 @@ def save_topographic_map(terrain: Terrain, biomes: np.ndarray, camera: Viewpoint
     ax.contour(terrain.x, terrain.y, terrain.heights, levels=[terrain.sea_level],
                colors="#154a69", linewidths=1.0)
     x, y, _ = camera.position
-    dx, dy = DIRECTIONS[camera.direction]
+    delta = np.subtract(camera.focal_point[:2], camera.position[:2])
+    dx, dy = delta / np.linalg.norm(delta)
     length = config.extent * 0.075
     ax.scatter([x], [y], c="#f54242", edgecolors="white", s=60, zorder=5)
     ax.annotate("", xy=(x + dx * length, y + dy * length), xytext=(x, y),
