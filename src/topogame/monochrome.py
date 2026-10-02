@@ -23,8 +23,9 @@ def save_monochrome_map(terrain: Terrain, camera: Viewpoint,
         contours = ax.contour(terrain.x, terrain.y, terrain.heights, levels=levels,
                               colors="black", linewidths=0.45, alpha=0.7)
         ax.clabel(contours, inline=True, fontsize=7, fmt="%g m", colors="black")
-    ax.contour(terrain.x, terrain.y, terrain.heights, levels=[terrain.sea_level],
-               colors="black", linewidths=1.0)
+    if terrain.heights.min() < terrain.sea_level < terrain.heights.max():
+        ax.contour(terrain.x, terrain.y, terrain.heights, levels=[terrain.sea_level],
+                   colors="black", linewidths=1.0)
     x, y, _ = camera.position
     ax.scatter([x], [y], c="black", edgecolors="white", s=60, zorder=5)
     ax.annotate("Camera", (x, y), xytext=(8, 8), textcoords="offset points",
