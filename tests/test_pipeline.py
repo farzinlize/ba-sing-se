@@ -2,6 +2,7 @@ from dataclasses import replace
 import json
 
 import numpy as np
+from matplotlib.figure import Figure
 from PIL import Image
 import pytest
 
@@ -10,6 +11,7 @@ from topogame.biomes import Biome, classify_biomes
 from topogame.cli import main
 from topogame.monochrome import save_monochrome_map
 from topogame.terrain import Terrain, diamond_square, generate_terrain
+from topogame.topographic import CAMERA_MARKER_SIZE, COMPASS_DIRECTIONS, add_compass_guide
 from topogame.viewpoint import DIRECTIONS, select_viewpoint
 
 
@@ -142,7 +144,7 @@ def test_complete_sample_and_reproduction(tmp_path):
         assert topo.width >= 1000 and topo.height >= 1000
 
 
-def test_monochrome_map_has_no_color_or_camera_orientation(tmp_path):
+def test_monochrome_map_only_colors_camera_position_and_hides_orientation(tmp_path):
     config = PipelineConfig(size=17)
     terrain = generate_terrain(config, np.random.default_rng(42))
     camera = select_viewpoint(terrain, config, np.random.default_rng(12))
@@ -154,9 +156,25 @@ def test_monochrome_map_has_no_color_or_camera_orientation(tmp_path):
         save_monochrome_map(terrain, rotated, config, path)
         with Image.open(path) as image:
             pixels = np.array(image.convert("RGB"))
-        np.testing.assert_array_equal(pixels[:, :, 0], pixels[:, :, 1])
-        np.testing.assert_array_equal(pixels[:, :, 1], pixels[:, :, 2])
+        chromatic = np.ptp(pixels, axis=2) > 5
+        red = ((pixels[:, :, 0] > 180) & (pixels[:, :, 1] < 140)
+               & (pixels[:, :, 2] < 140))
+        assert red.sum() > 100
+        assert chromatic.sum() < 2000
         assert pixels.min() == 0 and pixels.max() == 255
         if baseline is not None:
             np.testing.assert_array_equal(pixels, baseline)
         baseline = pixels
+
+
+def test_colored_map_uses_large_camera_marker_and_subtle_bottom_right_compass():
+    figure = Figure()
+    ax = figure.subplots()
+    add_compass_guide(ax)
+    labels = {text.get_text(): text for text in ax.texts}
+    assert CAMERA_MARKER_SIZE == 120
+    assert set(labels) == set(COMPASS_DIRECTIONS)
+    assert all(text.get_alpha() < 1 for text in labels.values())
+    assert all(text.get_position()[0] > 0.8 and text.get_position()[1] < 0.2
+               for text in labels.values())
+    assert ax.patches[0].get_alpha() < 0.5

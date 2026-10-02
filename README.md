@@ -34,8 +34,8 @@ samples are never overwritten.
 
 ```text
 outputs/demo/sample_0000/
-├── topographic.png  # hillshaded north-up map, surface-color legend, contours, camera arrow
-├── topographic_monochrome.png  # black contours, camera position only; no bearing
+├── topographic.png  # hillshaded map, contours, large red camera marker, compass guide
+├── topographic_monochrome.png  # black contours, red camera position only; no bearing
 ├── view.png         # perspective image from that arrow's position and bearing
 ├── terrain.npz      # final heights, biome IDs, shared surface_rgb, x/y axes, sea level
 └── metadata.json    # seed, configuration, camera, palette, dependency versions
@@ -194,8 +194,10 @@ shape, eye height, or required hill count).
 | `pipeline.py` | Reproducible stage orchestration and artifact persistence |
 | `cli.py` | Single-sample and batch command-line interface |
 
-The additional `topographic_monochrome.png` has no colored fills or biome legend.
-It keeps elevation labels, north-up map orientation, and a black camera location
+The colored map uses a prominent red camera marker and a subtle eight-direction
+compass guide in its bottom-right corner. The additional
+`topographic_monochrome.png` has no colored fills or biome legend.
+It keeps elevation labels, north-up map orientation, and a red camera location
 dot labeled "Camera", with no camera arrow or facing-direction label. Camera
 direction remains available in the original colored map and metadata.
 

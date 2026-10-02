@@ -7,12 +7,13 @@ from matplotlib.figure import Figure
 
 from .config import PipelineConfig
 from .terrain import Terrain
+from .topographic import CAMERA_MARKER_SIZE
 from .viewpoint import Viewpoint
 
 
 def save_monochrome_map(terrain: Terrain, camera: Viewpoint,
                         config: PipelineConfig, path: Path) -> None:
-    """Save black contours on white, with a nondirectional camera position dot."""
+    """Save black contours on white, with a red nondirectional camera position dot."""
     figure = Figure(figsize=(9, 9), layout="constrained", facecolor="white")
     FigureCanvasAgg(figure)
     ax = figure.subplots()
@@ -27,7 +28,8 @@ def save_monochrome_map(terrain: Terrain, camera: Viewpoint,
         ax.contour(terrain.x, terrain.y, terrain.heights, levels=[terrain.sea_level],
                    colors="black", linewidths=1.0)
     x, y, _ = camera.position
-    ax.scatter([x], [y], c="black", edgecolors="white", s=60, zorder=5)
+    ax.scatter([x], [y], c="#f54242", edgecolors="white",
+               linewidths=1.0, s=CAMERA_MARKER_SIZE, zorder=5)
     ax.annotate("Camera", (x, y), xytext=(8, 8), textcoords="offset points",
                 fontsize=9, color="black",
                 bbox={"facecolor": "white", "alpha": 0.85, "edgecolor": "none"})
