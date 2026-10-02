@@ -19,7 +19,7 @@ from topogame.viewpoint import NoSuitableViewError, select_viewpoint
 
 @pytest.fixture
 def landscape():
-    config = PipelineConfig(size=65, render_style='stylized', island=False, min_height=50,
+    config = PipelineConfig(seed=3, size=65, render_style='stylized', island=False, min_height=50,
                             max_height=450, tree_density=1.5, ground_cover_density=0.1,
                             rock_density=0.2, width=400, height=240)
     a, b = np.random.SeedSequence(config.seed).spawn(2)

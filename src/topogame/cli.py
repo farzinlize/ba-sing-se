@@ -25,6 +25,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--terrain-mode", choices=("rounded", "fractal"), default="rounded",
                         help="Broad hills and connected ridges (default), or diamond-square terrain")
     parser.add_argument("--terrain-smoothing", type=float, default=12, help="Gaussian smoothing radius (sigma) in meters; 0 disables")
+    parser.add_argument("--rounded-hills-min", type=int, default=4, help="Minimum broad hills in rounded mode")
+    parser.add_argument("--rounded-hills-max", type=int, default=15, help="Maximum broad hills in rounded mode")
     parser.add_argument("--sun-azimuth", type=float, default=315, help="Sun bearing clockwise from north; default NW (315)")
     parser.add_argument("--sun-elevation", type=float, default=35, help="Sun elevation above the horizon in degrees")
     parser.add_argument("--no-shadows", dest="shadows", action="store_false", help="Disable camera-image cast shadows")

@@ -41,7 +41,8 @@ def generate_sample(output: str | Path, config: PipelineConfig | None = None) ->
         np.savez_compressed(stage / "terrain.npz", heights=terrain.heights, biomes=biomes,
                             x=terrain.x, y=terrain.y, sea_level=terrain.sea_level, surface_rgb=rgb)
         metadata = {
-            "schema_version": 4, "config": asdict(config), "camera": asdict(camera),
+            "schema_version": 5, "config": asdict(config), "camera": asdict(camera),
+            "terrain_generation": terrain.generation_details,
             "scenery": scene.metadata() if scene is not None else {"enabled": False},
             "appearance": {"surface_colors": dict(zip(SURFACE_LABELS, surface_palette(config).tolist())),
                            "color_model": "smooth elevation and slope blend",

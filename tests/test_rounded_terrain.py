@@ -12,7 +12,8 @@ from topogame.biomes import (SURFACE_COLORS, classify_biomes, hillshade_colors,
                             terrain_colors, terrain_normals)
 from topogame.cli import main
 from topogame.rendering import render_view
-from topogame.terrain import Terrain, diamond_square, generate_terrain, smooth_heightmap
+from topogame.terrain import (Terrain, diamond_square, generate_terrain,
+                             rounded_heightmap, smooth_heightmap)
 from topogame.viewpoint import find_hills, hill_is_visible, select_viewpoint
 
 
@@ -57,6 +58,52 @@ def test_rounded_terrain_is_reproducible_dry_and_less_sharp_than_fractal():
     assert len(find_hills(rounded)) >= 3
     # No island mask forcing all boundary points to the minimum elevation.
     assert np.ptp(rounded.heights[0]) > 1
+
+
+def test_rounded_hill_count_and_free_placement_are_seeded_and_constrained():
+    first, details = rounded_heightmap(
+        65, 0.55, np.random.default_rng(7), (6, 6), return_details=True)
+    same, same_details = rounded_heightmap(
+        65, 0.55, np.random.default_rng(7), (6, 6), return_details=True)
+    np.testing.assert_array_equal(first, same)
+    assert details == same_details
+    assert details["hill_count"] == 6
+    centers = np.asarray(details["hill_centers_normalized"])
+    assert np.all((0.07 <= centers) & (centers <= 0.93))
+    assert details["minimum_center_spacing_normalized"] >= 0.055
+    # The former layout kept every coordinate close to the fixed 0.2/0.5/0.8 grid.
+    distance_from_old_grid = np.min(
+        np.abs(centers[..., None] - np.array([0.2, 0.5, 0.8])), axis=2)
+    assert distance_from_old_grid.max() > 0.1
+
+
+def test_rounded_seeds_vary_large_scale_landscape_structure():
+    hill_counts, ridge_counts, isolated_counts = set(), set(), set()
+    highland_centers, open_plain_fractions, dominant_quadrants = [], [], set()
+    config = PipelineConfig(size=65, island=False)
+    for seed in range(20):
+        terrain = generate_terrain(config, np.random.default_rng(seed))
+        details = terrain.generation_details
+        hill_counts.add(details["hill_count"])
+        ridge_counts.add(details["ridge_count"])
+        isolated_counts.add(details["isolated_hill_count"])
+        normalized = (terrain.heights - terrain.heights.min()) / np.ptp(terrain.heights)
+        rows, columns = np.where(normalized >= np.quantile(normalized, 0.85))
+        highland_centers.append((columns.mean() / 64, rows.mean() / 64))
+        open_plain_fractions.append(float(np.mean(normalized < 0.22)))
+        quadrant_means = [normalized[:32, :32].mean(), normalized[:32, 33:].mean(),
+                          normalized[33:, :32].mean(), normalized[33:, 33:].mean()]
+        dominant_quadrants.add(int(np.argmax(quadrant_means)))
+    highland_centers = np.asarray(highland_centers)
+    # These geometry metrics distinguish shifted clusters, broad plains, and
+    # different connectivity, instead of merely checking unequal height arrays.
+    assert len(hill_counts) >= 6
+    assert len(ridge_counts) >= 6
+    assert len(isolated_counts) >= 5
+    assert np.ptp(highland_centers[:, 0]) > 0.35
+    assert np.ptp(highland_centers[:, 1]) > 0.35
+    assert np.ptp(open_plain_fractions) > 0.3
+    assert dominant_quadrants == {0, 1, 2, 3}
 
 
 def test_original_fractal_shape_is_available_without_smoothing():
@@ -105,7 +152,8 @@ def test_hillshade_uses_world_north_and_is_optional():
 
 
 def test_camera_rules_hold_on_final_smoothed_dry_terrain():
-    config = PipelineConfig(size=65, island=False, min_height=50, max_height=450, terrain_smoothing=25)
+    config = PipelineConfig(size=65, seed=3, island=False, min_height=50,
+                            max_height=450, terrain_smoothing=25)
     terrain_seed, camera_seed = np.random.SeedSequence(config.seed).spawn(2)
     terrain = generate_terrain(config, np.random.default_rng(terrain_seed))
     camera = select_viewpoint(terrain, config, np.random.default_rng(camera_seed))
@@ -125,7 +173,7 @@ def test_camera_rules_hold_on_final_smoothed_dry_terrain():
 
 @pytest.mark.render
 def test_dry_pair_metadata_and_lighting_controls(tmp_path):
-    config = PipelineConfig(size=65, island=False, min_height=50, max_height=450,
+    config = PipelineConfig(size=65, seed=3, island=False, min_height=50, max_height=450,
                             width=400, height=240, contour_interval=25)
     sample = generate_sample(tmp_path / "pair", config)
     metadata = json.loads((sample / "metadata.json").read_text())
@@ -133,6 +181,9 @@ def test_dry_pair_metadata_and_lighting_controls(tmp_path):
     assert metadata["config"]["sun_azimuth"] == 315
     assert metadata["config"]["sun_elevation"] == 35
     assert metadata["config"]["terrain_smoothing"] == 12
+    assert metadata["config"]["rounded_hills_min"] == 4
+    assert metadata["config"]["rounded_hills_max"] == 15
+    assert metadata["terrain_generation"]["hill_count"] >= 4
     assert metadata["config"]["shadows"] is True
     np.testing.assert_allclose(metadata["appearance"]["sun_direction"], config.sun_direction)
     with np.load(sample / "terrain.npz") as data:
@@ -156,7 +207,8 @@ def test_dry_pair_metadata_and_lighting_controls(tmp_path):
 def test_cli_saves_requested_count_of_rounded_dry_pairs(tmp_path):
     assert main(["--output", str(tmp_path), "--seed", "42", "--count", "2", "--size", "65",
                  "--terrain-mode", "rounded", "--no-island", "--min-height", "50", "--max-height", "450",
-                 "--sea-level", "-10", "--terrain-smoothing", "20", "--sun-azimuth", "300",
+                 "--sea-level", "-10", "--rounded-hills-min", "5", "--rounded-hills-max", "9",
+                 "--terrain-smoothing", "20", "--sun-azimuth", "300",
                  "--sun-elevation", "40", "--ambient-light", "0.4", "--hillshade-strength", "0.2",
                  "--no-shadows", "--width", "320", "--height", "180"]) == 0
     assert sorted(p.name for p in tmp_path.iterdir()) == ["sample_0000", "sample_0001"]
@@ -165,5 +217,8 @@ def test_cli_saves_requested_count_of_rounded_dry_pairs(tmp_path):
         assert metadata["config"]["sun_azimuth"] == 300
         assert metadata["config"]["shadows"] is False
         assert metadata["config"]["terrain_smoothing"] == 20
+        assert metadata["config"]["rounded_hills_min"] == 5
+        assert metadata["config"]["rounded_hills_max"] == 9
+        assert 5 <= metadata["terrain_generation"]["hill_count"] <= 9
         with np.load(path / "terrain.npz") as data:
             assert np.all(data["heights"] > data["sea_level"])

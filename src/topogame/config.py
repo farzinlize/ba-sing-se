@@ -16,6 +16,8 @@ class PipelineConfig:
     island: bool = True
     terrain_mode: str = "rounded"
     terrain_smoothing: float = 12.0
+    rounded_hills_min: int = 4
+    rounded_hills_max: int = 15
     sun_azimuth: float = 315.0
     sun_elevation: float = 35.0
     shadows: bool = True
@@ -47,7 +49,8 @@ class PipelineConfig:
         # Accept a saved JSON configuration as well as the Python tuple form.
         if isinstance(self.tree_species, list):
             object.__setattr__(self, "tree_species", tuple(self.tree_species))
-        for name in ("seed", "size", "width", "height", "min_visible_hills"):
+        for name in ("seed", "size", "width", "height", "min_visible_hills",
+                     "rounded_hills_min", "rounded_hills_max"):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int):
                 raise ValueError(f"{name} must be an integer")
@@ -70,6 +73,8 @@ class PipelineConfig:
             raise ValueError("min_height < max_height and sea_level < max_height are required")
         if self.terrain_mode not in ("rounded", "fractal"):
             raise ValueError("terrain_mode must be rounded or fractal")
+        if not 3 <= self.rounded_hills_min <= self.rounded_hills_max <= 40:
+            raise ValueError("rounded hill counts must satisfy 3 <= min <= max <= 40")
         if self.render_style not in ("natural", "stylized"):
             raise ValueError("render_style must be natural or stylized")
         if not 0 <= self.tree_density <= 100 or not 0 <= self.rock_density <= 100:

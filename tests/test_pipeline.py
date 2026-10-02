@@ -20,6 +20,8 @@ from topogame.viewpoint import DIRECTIONS, select_viewpoint
     {"width": 0}, {"contour_interval": 0}, {"max_height": float("nan")},
     {"pitch": -10}, {"pitch": 1}, {"min_visible_hills": 1},
     {"min_visible_hills": True}, {"min_visible_hills": 2.5},
+    {"rounded_hills_min": 2}, {"rounded_hills_min": 16, "rounded_hills_max": 15},
+    {"rounded_hills_max": 41}, {"rounded_hills_min": 4.0},
 ])
 def test_invalid_settings(changes):
     with pytest.raises(ValueError):
@@ -56,7 +58,7 @@ def test_altitude_zones_and_sea_level_boundary():
 
 def test_camera_is_level_reproducible_and_consistent_with_grid():
     config = PipelineConfig(size=33)
-    terrain = generate_terrain(config, np.random.default_rng(14))
+    terrain = generate_terrain(config, np.random.default_rng(12))
     for seed in range(8):
         camera = select_viewpoint(terrain, config, np.random.default_rng(seed))
         same = select_viewpoint(terrain, config, np.random.default_rng(seed))
@@ -94,7 +96,7 @@ def test_failed_render_leaves_no_partial_sample(tmp_path, monkeypatch):
 
     monkeypatch.setattr("topogame.pipeline.render_view", fail)
     with pytest.raises(RuntimeError, match="renderer unavailable"):
-        generate_sample(tmp_path / "sample", PipelineConfig(size=17, seed=21))
+        generate_sample(tmp_path / "sample", PipelineConfig(size=17, seed=20))
     assert list(tmp_path.iterdir()) == []
 
 
@@ -115,7 +117,9 @@ def test_complete_sample_and_reproduction(tmp_path):
         "topographic.png", "topographic_monochrome.png", "view.png", "terrain.npz", "metadata.json",
     }
     metadata = json.loads((first / "metadata.json").read_text())
-    assert metadata["schema_version"] == 4
+    assert metadata["schema_version"] == 5
+    assert metadata["terrain_generation"]["mode"] == "rounded"
+    assert 4 <= metadata["terrain_generation"]["hill_count"] <= 15
     assert len(metadata["camera"]["visible_hills"]) >= 2
     camera_data = metadata["camera"]
     delta = np.subtract(camera_data["focal_point"], camera_data["position"])

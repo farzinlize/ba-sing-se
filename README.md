@@ -62,12 +62,17 @@ the horizontal field of view. `--width` and `--height` affect the camera image.
 
 ## Rounded terrain and lighting
 
-The default `--terrain-mode rounded` combines broad elliptical hills, connecting
-ridges, and subdued fractal detail. `--terrain-smoothing 12` applies a light
-Gaussian filter with sigma **12 meters**, independent of grid resolution; 0
-disables it. Filtering happens before colors, contours, and camera checks, and
-the final heights are normalized to `--min-height` / `--max-height`. For the
-original terrain shape use `--terrain-mode fractal --terrain-smoothing 0`.
+The default `--terrain-mode rounded` draws a seeded count of freely placed broad
+hills (4–15 by default), with varied scale, elongation, orientation, asymmetric
+shoulders, occasional dominant mountains, broad valleys, and a partial network
+of curved ridges. Some hills form clusters or chains while others remain isolated,
+so seeds change the large-scale terrain structure rather than only surface noise.
+Set the essential count range with `--rounded-hills-min` and
+`--rounded-hills-max`. `--terrain-smoothing 12` applies a light Gaussian filter
+with sigma **12 meters**, independent of grid resolution; 0 disables it. Filtering
+happens before colors, contours, and camera checks, and the final heights are
+normalized to `--min-height` / `--max-height`. For the original terrain shape use
+`--terrain-mode fractal --terrain-smoothing 0`.
 
 For continuous dry land, disable island falloff and put sea level below the
 minimum terrain height:
@@ -75,7 +80,8 @@ minimum terrain height:
 ```bash
 uv run topogame --output outputs/rounded --seed 42 --count 3 \
   --terrain-mode rounded --no-island --min-height 50 --max-height 450 --sea-level 0 \
-  --terrain-smoothing 12 --sun-azimuth 315 --sun-elevation 35 --contour-interval 25
+  --rounded-hills-min 4 --rounded-hills-max 15 --terrain-smoothing 12 \
+  --sun-azimuth 315 --sun-elevation 35 --contour-interval 25
 ```
 
 Sun azimuth is clockwise from north, toward the sun: 315° is northwest. Default
@@ -85,8 +91,12 @@ The colored map uses the same sun direction for subtle local slope hillshading;
 `--hillshade-strength 0.3` controls its strength (0 disables it). Contours are drawn
 above shading with light halos around labels. The monochrome map stays contour-only.
 
-These are synthetic landscapes, not an erosion/geology simulation. Map hillshade
-does not include cast shadows, and lighting makes map/view pixel colors differ.
+These are synthetic landscapes, not an erosion/geology simulation. The requested
+hill count describes source landforms; overlapping hills and ridges can merge into
+fewer detected summits after smoothing. More varied terrain also means some seeds
+cannot meet the strict camera composition rules and are skipped by batch runs.
+Map hillshade does not include cast shadows, and lighting makes map/view pixel
+colors differ.
 VTK shadow quality depends on the graphics backend and image size; see the
 [PyVista lighting notes](https://docs.pyvista.org/api/plotting/lights.html).
 
@@ -199,10 +209,11 @@ has no sea plane or coastline. Underwater heights remain in the data and contour
 Coordinates use meters: +X east, +Y north, +Z up. Array access is
 `heights[row_y, column_x]`, with row zero at the southern boundary. Both the map
 and camera use this convention. The colored map arrow matches the exact camera
-bearing; its compass label is rounded to N/NE/E/SE/S/SW/W/NW. Metadata schema 4
-records the exact bearing in `coordinates.bearing_degrees_clockwise_from_north`
-and selected summit `[row, column]` indices in `camera.visible_hills`, plus all
-terrain/lighting settings, the shared surface palette, and world-space sun vector.
+bearing; its compass label is rounded to N/NE/E/SE/S/SW/W/NW. Metadata schema 5
+records the exact bearing in `coordinates.bearing_degrees_clockwise_from_north`,
+selected summit `[row, column]` indices in `camera.visible_hills`, all settings,
+and realized rounded-generation details such as hill centers, shape parameters,
+ridge connections, valleys, and connectivity.
 
 ## Python API
 
@@ -224,9 +235,10 @@ with np.load("outputs/custom/terrain.npz") as data:
     print(heights.shape, heights.min(), heights.max())
 ```
 
-Separate NumPy random streams drive terrain and camera selection. The same seed,
-settings, and dependency versions reproduce terrain and camera metadata. PNG
-pixels may vary across graphics drivers and rendering-library versions.
+Separate NumPy random streams drive terrain, camera selection, vegetation, and
+decoration. The same seed, settings, and dependency versions reproduce terrain
+and camera metadata. PNG pixels may vary across graphics drivers and
+rendering-library versions.
 
 ## Rendering and tests
 
