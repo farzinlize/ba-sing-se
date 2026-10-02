@@ -144,10 +144,17 @@ def test_complete_sample_and_reproduction(tmp_path):
         assert topo.width >= 1000 and topo.height >= 1000
 
 
-def test_monochrome_map_only_colors_camera_position_and_hides_orientation(tmp_path):
+def test_monochrome_map_only_colors_camera_position_and_hides_orientation(tmp_path, monkeypatch):
     config = PipelineConfig(size=17)
     terrain = generate_terrain(config, np.random.default_rng(42))
     camera = select_viewpoint(terrain, config, np.random.default_rng(12))
+    guide_calls = []
+
+    def record_guide(ax):
+        guide_calls.append(ax)
+        add_compass_guide(ax)
+
+    monkeypatch.setattr("topogame.monochrome.add_compass_guide", record_guide)
     baseline = None
     for direction, (dx, dy) in DIRECTIONS.items():
         x, y, z = camera.position
@@ -165,6 +172,7 @@ def test_monochrome_map_only_colors_camera_position_and_hides_orientation(tmp_pa
         if baseline is not None:
             np.testing.assert_array_equal(pixels, baseline)
         baseline = pixels
+    assert len(guide_calls) == len(DIRECTIONS)
 
 
 def test_colored_map_uses_large_camera_marker_and_subtle_bottom_right_compass():

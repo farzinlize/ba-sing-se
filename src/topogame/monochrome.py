@@ -7,7 +7,7 @@ from matplotlib.figure import Figure
 
 from .config import PipelineConfig
 from .terrain import Terrain
-from .topographic import CAMERA_MARKER_SIZE
+from .topographic import CAMERA_MARKER_SIZE, add_compass_guide
 from .viewpoint import Viewpoint
 
 
@@ -36,6 +36,7 @@ def save_monochrome_map(terrain: Terrain, camera: Viewpoint,
     ax.set(xlim=(0, config.extent), ylim=(0, config.extent), aspect="equal",
            xlabel="East (m)", ylabel="North (m)",
            title=f"Terrain {config.seed} · North ↑ · contours {config.contour_interval:g} m")
+    add_compass_guide(ax)
     ax.tick_params(colors="black")
     ax.xaxis.label.set_color("black")
     ax.yaxis.label.set_color("black")

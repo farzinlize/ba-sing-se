@@ -35,7 +35,7 @@ samples are never overwritten.
 ```text
 outputs/demo/sample_0000/
 ├── topographic.png  # hillshaded map, contours, large red camera marker, compass guide
-├── topographic_monochrome.png  # black contours, red camera position only; no bearing
+├── topographic_monochrome.png  # black contours, red camera point, compass guide; no bearing
 ├── view.png         # perspective image from that arrow's position and bearing
 ├── terrain.npz      # final heights, biome IDs, shared surface_rgb, x/y axes, sea level
 └── metadata.json    # seed, configuration, camera, palette, dependency versions
@@ -198,7 +198,8 @@ The colored map uses a prominent red camera marker and a subtle eight-direction
 compass guide in its bottom-right corner. The additional
 `topographic_monochrome.png` has no colored fills or biome legend.
 It keeps elevation labels, north-up map orientation, and a red camera location
-dot labeled "Camera", with no camera arrow or facing-direction label. Camera
+dot labeled "Camera", plus the same subtle eight-direction compass guide. It has
+no camera arrow or facing-direction label. Camera
 direction remains available in the original colored map and metadata.
 
 The map and scene share the same final heights and muted grass/earth/rock colors,
